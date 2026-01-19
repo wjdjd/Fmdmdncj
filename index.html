@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Flag Arena - Fixed Position</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0ea5e9; 
+            --accent: #f59e0b;  
+            --text-dark: #0f172a; 
+            --bg-glass: rgba(255, 255, 255, 0.90); 
+            --border-glass: rgba(255, 255, 255, 0.5);
+            --shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        body { 
+            margin: 0; padding: 0; overflow: hidden; 
+            font-family: 'Poppins', sans-serif; 
+            background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+            background-size: cover; background-position: center;
+            user-select: none; touch-action: none; 
+            transition: background 0.5s ease;
+        }
+
+        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+
+        /* RANKING BOARD */
+        #ranking-board {
+            position: absolute; top: 0; left: 0; width: 100%;
+            background: rgba(15, 23, 42, 0.95); padding: 8px 5px;
+            box-sizing: border-box; z-index: 30; pointer-events: auto;
+            transition: transform 0.3s ease; backdrop-filter: blur(5px);
+            border-bottom: 2px solid var(--accent); height: auto; min-height: 50px;
+        }
+        #ranking-board.collapsed { transform: translateY(-88%); }
+        
+        #ranking-toggle {
+            position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%);
+            width: 50px; height: 18px; background: var(--accent);
+            border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;
+            text-align: center; cursor: pointer; font-size: 10px; line-height: 18px;
+            color: #000; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .rank-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; max-width: 800px; margin: 0 auto; }
+        .rank-card {
+            background: rgba(255, 255, 255, 0.95); border-radius: 4px; padding: 4px 6px;
+            display: flex; align-items: center; gap: 5px; border-left: 3px solid transparent;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .rank-card.rank-1 { border-left-color: #ffd700; background: #fffbe6; } 
+        .rank-card.rank-2 { border-left-color: #c0c0c0; } 
+        .rank-card.rank-3 { border-left-color: #cd7f32; } 
+        
+        .rc-rank { font-size: 10px; font-weight: 800; color: #64748b; min-width: 12px; }
+        .rc-flag { width: 20px; height: 14px; object-fit: cover; border-radius: 2px; border: 1px solid #e2e8f0; }
+        .rc-name { font-size: 10px; font-weight: 700; color: #0f172a; flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .rc-score { font-size: 10px; font-weight: 800; color: #ef4444; }
+
+        /* INFO BAR */
+        #info-bar {
+            position: absolute; top: 60px; left: 0; width: 100%;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0 15px; box-sizing: border-box; pointer-events: none; z-index: 20;
+        }
+        #counter-pill {
+            background: rgba(255, 255, 255, 0.9); padding: 8px 15px; border-radius: 20px; 
+            font-family: 'Orbitron'; font-size: 13px; font-weight: 700; color: var(--text-dark);
+            box-shadow: var(--shadow); border: 1px solid #e2e8f0; pointer-events: auto; white-space: nowrap;
+        }
+        .controls-area { display: flex; gap: 10px; pointer-events: auto; }
+        .ctrl-btn {
+            width: 42px; height: 42px; background: rgba(255, 255, 255, 0.9); border-radius: 12px;
+            display: flex; align-items: center; justify-content: center; font-size: 20px;
+            box-shadow: var(--shadow); cursor: pointer; border: 1px solid #e2e8f0; transition: transform 0.2s;
+        }
+        .ctrl-btn:active { transform: scale(0.95); }
+
+        /* WINNER BOX */
+        #winner-box {
+            display: none; position: absolute; top: 18%; left: 50%; 
+            transform: translateX(-50%); background: rgba(255, 255, 255, 0.98); 
+            padding: 25px 30px; border-radius: 20px; border: 4px solid var(--accent); 
+            text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.25); 
+            z-index: 100; pointer-events: auto; width: 80%; max-width: 280px;
+            animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        @keyframes popIn { from { transform: translateX(-50%) scale(0.8); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+        #winner-flag { width: 120px; height: 75px; object-fit: cover; border-radius: 8px; border: 1px solid #cbd5e1; margin: 15px 0; }
+        #winner-name { font-family: 'Orbitron', sans-serif; font-size: 22px; font-weight: 900; color: var(--text-dark); display: block; margin-bottom: 20px; text-transform: uppercase; }
+
+        /* BUTTONS */
+        #btn-container {
+            position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%); 
+            display: flex; flex-direction: column; align-items: center; gap: 20px; 
+            pointer-events: auto; z-index: 50;
+        }
+        .btn-main {
+            font-family: 'Orbitron', sans-serif; font-size: 20px; padding: 15px 45px; 
+            background: #ef4444; color: white; border: none; border-radius: 50px; 
+            cursor: pointer; font-weight: 800; box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4); 
+            text-transform: uppercase; animation: bounce 2s infinite;
+        }
+        @keyframes bounce { 0%, 100% {transform: translateY(0);} 50% {transform: translateY(-6px);} }
+        .btn-icon { width: 55px; height: 55px; background: white; border-radius: 50%; font-size: 22px; border: 1px solid #e2e8f0; cursor: pointer; }
+        .action-btn { width: 100%; padding: 12px; background: var(--text-dark); color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; }
+
+        /* --- O'ZGARTIRILGAN JOYLASHUV --- */
+        #cta-text {
+            position: absolute; 
+            /* BU YER O'ZGARTIRILDI: bottom 160px qilindi (tepaga chiqdi) */
+            bottom: 160px; 
+            left: 50%; 
+            transform: translateX(-50%);
+            
+            font-size: 11px; 
+            font-weight: 800; 
+            letter-spacing: 1px;
+            text-transform: uppercase; 
+            color: rgba(15, 23, 42, 0.85);
+            
+            background: rgba(255, 255, 255, 0.3); 
+            backdrop-filter: blur(8px); 
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.4); 
+            
+            padding: 10px 25px; 
+            border-radius: 30px; 
+            white-space: nowrap; 
+            pointer-events: none; 
+            z-index: 60; /* Tugmalar ustida turishi uchun */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+
+        /* SETTINGS */
+        #settings-modal {
+            display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            width: 85%; max-width: 320px; background: white; border-radius: 20px; padding: 25px; 
+            z-index: 1000; pointer-events: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
+        .modal-title { text-align: center; font-family: 'Orbitron'; font-size: 18px; margin-bottom: 20px; color: var(--primary); }
+        .control-group { margin-bottom: 15px; }
+        input[type=range] { width: 100%; }
+        select { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #cbd5e1; }
+        .danger-btn { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; margin-top: 15px; }
+
+        #confetti-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 90; }
+    </style>
+</head>
+<body>
+
+<canvas id="confetti-canvas"></canvas>
+
+<div id="ui">
+    <div id="ranking-board">
+        <div class="rank-grid" id="rank-grid">
+            <div class="rank-card" style="opacity:0.5; justify-content:center; color:#94a3b8; font-size:10px;">Waiting...</div>
+            <div class="rank-card" style="opacity:0.5; justify-content:center; color:#94a3b8; font-size:10px;">Waiting...</div>
+            <div class="rank-card" style="opacity:0.5; justify-content:center; color:#94a3b8; font-size:10px;">Waiting...</div>
+        </div>
+        <div id="ranking-toggle" onclick="toggleRanking()">▼</div>
+    </div>
+
+    <div id="info-bar">
+        <div id="counter-pill">Alive: 0 | SUB</div>
+        <div class="controls-area">
+            <div class="ctrl-btn" onclick="toggleSettings()">⚙️</div>
+            <div class="ctrl-btn" onclick="toggleFullScreen()">⛶</div>
+        </div>
+    </div>
+
+    <div id="winner-box">
+        <h3 style="margin:0; color: var(--accent); font-family: 'Orbitron'; letter-spacing: 1px; font-size: 14px;">WINNER!</h3>
+        <img id="winner-flag" src="">
+        <span id="winner-name"></span>
+        <button class="action-btn" onclick="restartGame()">NEXT ROUND</button>
+    </div>
+</div>
+
+<div id="btn-container">
+    <div style="display:flex; gap:20px; align-items:center;">
+        <button id="start-btn" class="btn-main" onclick="startGame()">SUBSCRIBE</button>
+        <button id="mute-btn" class="btn-icon" onclick="toggleMute()">🔊</button>
+    </div>
+</div>
+
+<div id="cta-text">Write which country you are from</div>
+
+<div id="settings-modal">
+    <div class="modal-title">SETTINGS</div>
+    <div class="control-group">
+        <label style="font-size:12px; font-weight:bold;">Bayroqlar: <span id="ball-count-val">100</span></label>
+        <input type="range" id="ball-count" min="10" max="200" value="100" oninput="document.getElementById('ball-count-val').innerText=this.value">
+    </div>
+    <div class="control-group">
+        <label style="font-size:12px; font-weight:bold;">Tezlik: <span id="speed-val" style="color:var(--primary)">1.0x</span></label>
+        <input type="range" id="speed-control" min="0.5" max="3.0" step="0.1" value="1.0" oninput="updateSpeed(this.value)">
+    </div>
+    
+    <div class="control-group">
+        <label style="font-size:12px; font-weight:bold;">Musiqa: <span id="music-vol-val">15%</span></label>
+        <input type="range" id="music-vol-control" min="0" max="100" value="15" oninput="updateMusicVolume(this.value)">
+    </div>
+    <div class="control-group">
+        <label style="font-size:12px; font-weight:bold;">Effektlar (Urilish): <span id="sfx-vol-val">30%</span></label>
+        <input type="range" id="sfx-vol-control" min="0" max="100" value="30" oninput="updateSfxVolume(this.value)">
+    </div>
+
+    <div class="control-group">
+        <label style="font-size:12px; font-weight:bold;">Fon:</label>
+        <input type="file" id="bg-upload" accept="image/*" onchange="changeBackground(event)" style="font-size:11px;">
+    </div>
+    <div class="control-group">
+        <label style="font-size:12px; font-weight:bold;">Musiqa:</label>
+        <input type="file" id="music-upload" accept="audio/*" onchange="changeMusic(event)" style="font-size:11px;">
+    </div>
+    
+    <div style="display:flex; gap:10px;">
+        <button class="action-btn" style="background:var(--primary); color:white; margin-top:10px;" onclick="saveAndRestart()">SAVE & RESTART</button>
+    </div>
+    <button class="action-btn danger-btn" onclick="clearLeaderboard()">🗑 RESET HISTORY</button>
+</div>
+
+<audio id="bgMusic1" src="Raise Your Game Flag.mp3" loop preload="auto"></audio>
+<audio id="bgMusic2" src="Buy My Time.mp3" loop preload="auto"></audio>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+
+<script>
+    // --- MUHIM: Matter.js modullarini global e'lon qilish (Engine xatosini yo'qotadi) ---
+    const { Engine, Render, Runner, Bodies, Composite, Events, Body, Vector, World } = Matter;
+
+    // Asosiy dvigatelni yaratish
+    let engine = Engine.create({ 
+        positionIterations: 4, 
+        velocityIterations: 4, 
+        constraintIterations: 2 
+    });
+    
+    let userSettings = { ballCount: 100, musicVolume: 0.15, sfxVolume: 0.30, speedMultiplier: 1.0 };
+    let winStats = {}; 
+    let render, runner, wheel, balls = [], isPlaying = false;
+    let customMusicSrc = null;
+    let audioCtx = null, isMuted = false, collisionBuffer = null, lastSoundTime = 0;
+    let bgMusic1 = document.getElementById('bgMusic1');
+    let bgMusic2 = document.getElementById('bgMusic2');
+    
+    const BASE_SPEED = 2.8; 
+    let CONFIG = { ringRadius: Math.min(window.innerWidth/2-25,175), ballSize: window.innerWidth<768?8.5:10.5, targetSpeed: BASE_SPEED, rotationSpeed: 0.012, gravityValue: 1.0 };
+
+    bgMusic1.volume = userSettings.musicVolume; 
+    bgMusic2.volume = userSettings.musicVolume;
+    let currentBgMusic = bgMusic1;
+    let availableVoices = [];
+
+    function loadVoices() { if ('speechSynthesis' in window) { let t = setInterval(() => { let v = window.speechSynthesis.getVoices(); if (v.length > 0) { availableVoices = v; clearInterval(t); } }, 100); } }
+    loadVoices();
+
+    function initAudio() { if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); createCollisionBuffer(); } if (audioCtx.state === 'suspended') audioCtx.resume(); }
+    function createCollisionBuffer() { const d = 0.15, r = audioCtx.sampleRate, s = r*d, b = audioCtx.createBuffer(1,s,r), t=b.getChannelData(0); for(let i=0;i<s;i++) { const x=i/r; t[i]=Math.sin(2*Math.PI*(400-(x/d)*300)*x)*(1-(x/d)); } collisionBuffer=b; }
+    
+    function playCollisionSound(i) { 
+        if(!audioCtx||!collisionBuffer||isMuted) return; 
+        const n=Date.now(); 
+        if(n-lastSoundTime<80||i<1.5) return; 
+        lastSoundTime=n; 
+        const s=audioCtx.createBufferSource(); 
+        s.buffer=collisionBuffer; 
+        const g=audioCtx.createGain(); 
+        g.gain.value=Math.min(i/25,0.3) * (userSettings.sfxVolume * 2); 
+        s.playbackRate.value=0.8+Math.random()*0.4; 
+        s.connect(g); g.connect(audioCtx.destination); s.start(); 
+    }
+
+    function playVictorySound() { 
+        if(!audioCtx||isMuted) return; 
+        const n=audioCtx.currentTime; 
+        [523.25,659.25,783.99,1046.50,1318.51].forEach((f,i)=>{ 
+            const o=audioCtx.createOscillator(),g=audioCtx.createGain(); 
+            o.type='sine'; 
+            o.frequency.setValueAtTime(f,n+i*0.15); 
+            g.gain.setValueAtTime(0,n+i*0.15); 
+            g.gain.linearRampToValueAtTime(0.3 * userSettings.sfxVolume, n+i*0.15+0.1); 
+            g.gain.exponentialRampToValueAtTime(0.001,n+i*0.15+2); 
+            o.connect(g); g.connect(audioCtx.destination); 
+            o.start(n+i*0.15); o.stop(n+i*0.15+2); 
+        }); 
+    }
+
+    function toggleRanking() { document.getElementById('ranking-board').classList.toggle('collapsed'); }
+    
+    function updateMusicVolume(val) { 
+        document.getElementById('music-vol-val').innerText = val + "%"; 
+        userSettings.musicVolume = val/100; 
+        if(!isMuted) {
+            bgMusic1.volume = userSettings.musicVolume; 
+            bgMusic2.volume = userSettings.musicVolume; 
+        }
+    }
+    
+    function updateSfxVolume(val) {
+        document.getElementById('sfx-vol-val').innerText = val + "%";
+        userSettings.sfxVolume = val/100;
+    }
+    
+    function updateSpeed(val) {
+        document.getElementById('speed-val').innerText = val + "x";
+        userSettings.speedMultiplier = parseFloat(val);
+        CONFIG.targetSpeed = BASE_SPEED * userSettings.speedMultiplier;
+    }
+
+    function changeBackground(e) { const f=e.target.files[0]; if(f){ const r=new FileReader(); r.onload=function(ev){document.body.style.backgroundImage=`url('${ev.target.result}')`; document.body.style.backgroundSize="cover";}; r.readAsDataURL(f); } }
+    function changeMusic(e) { const f=e.target.files[0]; if(f) customMusicSrc=URL.createObjectURL(f); }
+    function toggleSettings() { const m=document.getElementById('settings-modal'); m.style.display=(m.style.display==='block')?'none':'block'; }
+    function toggleFullScreen() { if(!document.fullscreenElement) document.documentElement.requestFullscreen(); else if(document.exitFullscreen) document.exitFullscreen(); }
+    
+    function saveAndRestart() {
+        try {
+            const countInput = document.getElementById('ball-count');
+            userSettings.ballCount = countInput ? (parseInt(countInput.value) || 100) : 100;
+            
+            if (customMusicSrc) { bgMusic1.src = customMusicSrc; currentBgMusic = bgMusic1; }
+            bgMusic1.volume = userSettings.musicVolume; 
+            bgMusic2.volume = userSettings.musicVolume;
+            
+            CONFIG.targetSpeed = BASE_SPEED * userSettings.speedMultiplier;
+            document.getElementById('settings-modal').style.display = 'none';
+            restartGame();
+        } catch (err) {
+            console.error(err);
+            alert("Sozlamalarni saqlashda xatolik!");
+        }
+    }
+
+    function clearLeaderboard() {
+        if(confirm("Tarixni tozalashni xohlaysizmi?")) {
+            winStats = {};
+            document.getElementById('rank-grid').innerHTML = `
+                <div class="rank-card" style="opacity:0.5; justify-content:center; color:#94a3b8; font-size:10px;">Waiting...</div>
+                <div class="rank-card" style="opacity:0.5; justify-content:center; color:#94a3b8; font-size:10px;">Waiting...</div>
+                <div class="rank-card" style="opacity:0.5; justify-content:center; color:#94a3b8; font-size:10px;">Waiting...</div>
+            `;
+            alert("Tozalandi!");
+            document.getElementById('settings-modal').style.display = 'none';
+        }
+    }
+
+    function wakeUpSpeech() { if('speechSynthesis' in window){ window.speechSynthesis.cancel(); window.speechSynthesis.speak(new SpeechSynthesisUtterance(" ")); } }
+    function speakText(t) { if(!('speechSynthesis' in window))return; window.speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); const v=availableVoices.find(v=>v.name.includes("Google US English"))||availableVoices.find(v=>v.lang.startsWith("en")); if(v)u.voice=v; u.lang='en-US'; u.rate=1.0; u.volume=1.0; window.speechSynthesis.speak(u); }
+    
+    function toggleMute() { 
+        isMuted=!isMuted; 
+        document.getElementById('mute-btn').innerText=isMuted?"🔇":"🔊"; 
+        if(isMuted){
+            bgMusic1.pause();
+            bgMusic2.pause();
+            window.speechSynthesis.cancel();
+        } else { 
+            currentBgMusic.volume = userSettings.musicVolume;
+            currentBgMusic.play(); 
+        } 
+    }
+    
+    function startGame() { initAudio(); wakeUpSpeech(); document.getElementById('btn-container').style.display='none'; init(); isPlaying=true; if(!isMuted)currentBgMusic.play(); }
+    
+    function restartGame() {
+        try {
+            if(runner) Runner.stop(runner);
+            if(render) {
+                Render.stop(render);
+                if(render.canvas) render.canvas.remove();
+                render.canvas = null;
+                render.context = null;
+                render.textures = {};
+            }
+            // Engine endi global e'lon qilingan, uni tozalash xavfsiz
+            if(engine) {
+                World.clear(engine.world);
+                Engine.clear(engine); 
+                engine.events = {}; 
+            }
+            
+            balls=[]; 
+            document.getElementById('winner-box').style.display='none'; 
+            document.getElementById('cta-text').style.display='block';
+            
+            if(ctx) ctx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
+            
+            bgMusic1.pause(); bgMusic2.pause(); bgMusic1.currentTime=0;
+            
+            setTimeout(() => {
+                init(); 
+                isPlaying=true; 
+                if(!isMuted) {
+                    currentBgMusic.volume = userSettings.musicVolume;
+                    currentBgMusic.play();
+                }
+            }, 100); 
+            
+        } catch (e) {
+            alert("Xatolik: " + e.message);
+            location.reload(); 
+        }
+    }
+
+    const allCountries = [
+        {name:"Afghanistan",code:"af"},{name:"Albania",code:"al"},{name:"Algeria",code:"dz"},{name:"Andorra",code:"ad"},{name:"Angola",code:"ao"},{name:"Antigua",code:"ag"},{name:"Argentina",code:"ar"},{name:"Armenia",code:"am"},{name:"Australia",code:"au"},{name:"Austria",code:"at"},{name:"Azerbaijan",code:"az"},
+        {name:"Bahamas",code:"bs"},{name:"Bahrain",code:"bh"},{name:"Bangladesh",code:"bd"},{name:"Barbados",code:"bb"},{name:"Belarus",code:"by"},{name:"Belgium",code:"be"},{name:"Belize",code:"bz"},{name:"Benin",code:"bj"},{name:"Bhutan",code:"bt"},{name:"Bolivia",code:"bo"},{name:"Bosnia",code:"ba"},{name:"Botswana",code:"bw"},{name:"Brazil",code:"br"},{name:"Brunei",code:"bn"},{name:"Bulgaria",code:"bg"},{name:"Burkina Faso",code:"bf"},{name:"Burundi",code:"bi"},
+        {name:"Cabo Verde",code:"cv"},{name:"Cambodia",code:"kh"},{name:"Cameroon",code:"cm"},{name:"Canada",code:"ca"},{name:"CAR",code:"cf"},{name:"Chad",code:"td"},{name:"Chile",code:"cl"},{name:"China",code:"cn"},{name:"Colombia",code:"co"},{name:"Comoros",code:"km"},{name:"Congo",code:"cg"},{name:"Costa Rica",code:"cr"},{name:"Croatia",code:"hr"},{name:"Cuba",code:"cu"},{name:"Cyprus",code:"cy"},{name:"Czechia",code:"cz"},
+        {name:"Denmark",code:"dk"},{name:"Djibouti",code:"dj"},{name:"Dominica",code:"dm"},{name:"Dominican Rep",code:"do"},{name:"DR Congo",code:"cd"},
+        {name:"Ecuador",code:"ec"},{name:"Egypt",code:"eg"},{name:"El Salvador",code:"sv"},{name:"Eq. Guinea",code:"gq"},{name:"Eritrea",code:"er"},{name:"Estonia",code:"ee"},{name:"Eswatini",code:"sz"},{name:"Ethiopia",code:"et"},
+        {name:"Fiji",code:"fj"},{name:"Finland",code:"fi"},{name:"France",code:"fr"},
+        {name:"Gabon",code:"ga"},{name:"Gambia",code:"gm"},{name:"Georgia",code:"ge"},{name:"Germany",code:"de"},{name:"Ghana",code:"gh"},{name:"Greece",code:"gr"},{name:"Grenada",code:"gd"},{name:"Guatemala",code:"gt"},{name:"Guinea",code:"gn"},{name:"Guinea-Bissau",code:"gw"},{name:"Guyana",code:"gy"},
+        {name:"Haiti",code:"ht"},{name:"Honduras",code:"hn"},{name:"Hungary",code:"hu"},
+        {name:"Iceland",code:"is"},{name:"India",code:"in"},{name:"Indonesia",code:"id"},{name:"Iran",code:"ir"},{name:"Iraq",code:"iq"},{name:"Ireland",code:"ie"},{name:"Israel",code:"il"},{name:"Italy",code:"it"},{name:"Ivory Coast",code:"ci"},
+        {name:"Jamaica",code:"jm"},{name:"Japan",code:"jp"},{name:"Jordan",code:"jo"},
+        {name:"Kazakhstan",code:"kz"},{name:"Kenya",code:"ke"},{name:"Kiribati",code:"ki"},{name:"Kuwait",code:"kw"},{name:"Kyrgyzstan",code:"kg"},
+        {name:"Laos",code:"la"},{name:"Latvia",code:"lv"},{name:"Lebanon",code:"lb"},{name:"Lesotho",code:"ls"},{name:"Liberia",code:"lr"},{name:"Libya",code:"ly"},{name:"Liechtenstein",code:"li"},{name:"Lithuania",code:"lt"},{name:"Luxembourg",code:"lu"},
+        {name:"Madagascar",code:"mg"},{name:"Malawi",code:"mw"},{name:"Malaysia",code:"my"},{name:"Maldives",code:"mv"},{name:"Mali",code:"ml"},{name:"Malta",code:"mt"},{name:"Marshall Is",code:"mh"},{name:"Mauritania",code:"mr"},{name:"Mauritius",code:"mu"},{name:"Mexico",code:"mx"},{name:"Micronesia",code:"fm"},{name:"Moldova",code:"md"},{name:"Monaco",code:"mc"},{name:"Mongolia",code:"mn"},{name:"Montenegro",code:"me"},{name:"Morocco",code:"ma"},{name:"Mozambique",code:"mz"},{name:"Myanmar",code:"mm"},
+        {name:"Namibia",code:"na"},{name:"Nauru",code:"nr"},{name:"Nepal",code:"np"},{name:"Netherlands",code:"nl"},{name:"New Zealand",code:"nz"},{name:"Nicaragua",code:"ni"},{name:"Niger",code:"ne"},{name:"Nigeria",code:"ng"},{name:"North Korea",code:"kp"},{name:"North Macedonia",code:"mk"},{name:"Norway",code:"no"},
+        {name:"Oman",code:"om"},
+        {name:"Pakistan",code:"pk"},{name:"Palau",code:"pw"},{name:"Palestine",code:"ps"},{name:"Panama",code:"pa"},{name:"PNG",code:"pg"},{name:"Paraguay",code:"py"},{name:"Peru",code:"pe"},{name:"Philippines",code:"ph"},{name:"Poland",code:"pl"},{name:"Portugal",code:"pt"},
+        {name:"Qatar",code:"qa"},
+        {name:"Romania",code:"ro"},{name:"Russia",code:"ru"},{name:"Rwanda",code:"rw"},
+        {name:"St Kitts",code:"kn"},{name:"St Lucia",code:"lc"},{name:"St Vincent",code:"vc"},{name:"Samoa",code:"ws"},{name:"San Marino",code:"sm"},{name:"Sao Tome",code:"st"},{name:"Saudi Arabia",code:"sa"},{name:"Senegal",code:"sn"},{name:"Serbia",code:"rs"},{name:"Seychelles",code:"sc"},{name:"Sierra Leone",code:"sl"},{name:"Singapore",code:"sg"},{name:"Slovakia",code:"sk"},{name:"Slovenia",code:"si"},{name:"Solomon Is",code:"sb"},{name:"Somalia",code:"so"},{name:"South Africa",code:"za"},{name:"South Korea",code:"kr"},{name:"South Sudan",code:"ss"},{name:"Spain",code:"es"},{name:"Sri Lanka",code:"lk"},{name:"Sudan",code:"sd"},{name:"Suriname",code:"sr"},{name:"Sweden",code:"se"},{name:"Switzerland",code:"ch"},{name:"Syria",code:"sy"},
+        {name:"Taiwan",code:"tw"},{name:"Tajikistan",code:"tj"},{name:"Tanzania",code:"tz"},{name:"Thailand",code:"th"},{name:"Timor-Leste",code:"tl"},{name:"Togo",code:"tg"},{name:"Tonga",code:"to"},{name:"Trinidad",code:"tt"},{name:"Tunisia",code:"tn"},{name:"Turkey",code:"tr"},{name:"Turkmenistan",code:"tm"},{name:"Tuvalu",code:"tv"},
+        {name:"Uganda",code:"ug"},{name:"Ukraine",code:"ua"},{name:"UAE",code:"ae"},{name:"UK",code:"gb"},{name:"USA",code:"us"},{name:"Uruguay",code:"uy"},{name:"Uzbekistan",code:"uz"},
+        {name:"Vanuatu",code:"vu"},{name:"Vatican",code:"va"},{name:"Venezuela",code:"ve"},{name:"Vietnam",code:"vn"},
+        {name:"Yemen",code:"ye"},
+        {name:"Zambia",code:"zm"},{name:"Zimbabwe",code:"zw"}
+    ];
+
+    function init() {
+        engine.gravity.y = CONFIG.gravityValue;
+        Events.on(engine, 'collisionStart', (e) => { const p=e.pairs; for(let i=0;i<p.length;i++){if(p[i].bodyA.speed+p[i].bodyB.speed>1.5)playCollisionSound(p[i].bodyA.speed+p[i].bodyB.speed);} });
+        render = Render.create({ element: document.body, engine: engine, options: { width: window.innerWidth, height: window.innerHeight, wireframes: false, background: 'transparent', pixelRatio: 1 } });
+        const cx=window.innerWidth/2, cy=window.innerHeight/2; 
+        const floor=Bodies.rectangle(cx,window.innerHeight+25,window.innerWidth*2,50,{isStatic:true,friction:0.5,restitution:0.5,render:{visible:false}});
+        const wallL=Bodies.rectangle(-20,window.innerHeight/2,40,window.innerHeight,{isStatic:true,render:{visible:false}});
+        const wallR=Bodies.rectangle(window.innerWidth+20,window.innerHeight/2,40,window.innerHeight,{isStatic:true,render:{visible:false}});
+        Composite.add(engine.world, [floor,wallL,wallR]);
+
+        wheel = Composite.create();
+        const seg=80, gap=5;
+        for(let i=0;i<seg-gap;i++){
+            const a=(i/seg)*Math.PI*2;
+            const w=Bodies.rectangle(cx+Math.cos(a)*CONFIG.ringRadius, cy+Math.sin(a)*CONFIG.ringRadius, 22, 6, {isStatic:true, angle:a+Math.PI/2, render:{fillStyle:'#0f172a'}, restitution:1.0});
+            Composite.add(wheel,w);
+        }
+        Composite.add(engine.world, wheel);
+
+        const shuf=allCountries.sort(()=>0.5-Math.random());
+        const count=Math.min(userSettings.ballCount, allCountries.length);
+        const sel=shuf.slice(0,count);
+
+        sel.forEach(c=>{
+            const b=Bodies.circle(cx+(Math.random()-0.5)*130, cy+(Math.random()-0.5)*130, CONFIG.ballSize, {
+                restitution:0.95, friction:0, frictionAir:0, inertia:Infinity,
+                render:{sprite:{texture:`https://flagcdn.com/w80/${c.code}.png`, xScale:(CONFIG.ballSize*2.5)/80, yScale:(CONFIG.ballSize*2.5)/80}},
+                label:c.name
+            });
+            b.countryCode=c.code; b.isActive=true;
+            const a=Math.random()*Math.PI*2;
+            Body.setVelocity(b,{x:Math.cos(a)*CONFIG.targetSpeed, y:Math.sin(a)*CONFIG.targetSpeed});
+            balls.push(b);
+        });
+        Composite.add(engine.world, balls);
+
+        Events.on(engine, 'beforeUpdate', () => {
+            if(!isPlaying)return;
+            Composite.rotate(wheel, CONFIG.rotationSpeed, {x:cx,y:cy});
+            balls.forEach(b=>{
+                if(b.isActive){
+                    Body.applyForce(b,b.position,{x:0,y:-engine.gravity.y*engine.gravity.scale*b.mass});
+                    const s=Math.sqrt(b.velocity.x**2+b.velocity.y**2);
+                    if(s>0)Body.setVelocity(b,{x:b.velocity.x*(CONFIG.targetSpeed/s), y:b.velocity.y*(CONFIG.targetSpeed/s)});
+                    if(Vector.magnitude(Vector.sub(b.position,{x:cx,y:cy}))>CONFIG.ringRadius+22){ b.isActive=false; b.frictionAir=0.01; b.restitution=0.65; }
+                }
+            });
+            const alive=balls.filter(b=>b.isActive);
+            document.getElementById('counter-pill').innerText="Alive: "+alive.length+" | SUB";
+            if(alive.length===1 && isPlaying) showWinner(alive[0]);
+        });
+
+        Render.run(render); runner=Runner.create(); Runner.run(runner,engine);
+    }
+
+    function updateRankingDisplay() {
+        const sorted = Object.values(winStats).sort((a, b) => b.count - a.count).slice(0, 9);
+        let html = '';
+        if (sorted.length === 0) {
+            html = '<div style="color:white; text-align:center; padding:10px; grid-column:span 3;">No winners yet</div>';
+        } else {
+            sorted.forEach((l, index) => {
+                html += `
+                    <div class="rank-card rank-${index + 1}">
+                        <span class="rc-rank">${index + 1}</span>
+                        <img src="https://flagcdn.com/w80/${l.code}.png" class="rc-flag">
+                        <span class="rc-name">${l.name}</span>
+                        <span class="rc-score">${l.count}</span>
+                    </div>
+                `;
+            });
+        }
+        document.getElementById('rank-grid').innerHTML = html;
+    }
+
+    function updateLeaderboard(winner) {
+        if (!winStats[winner.countryCode]) {
+            winStats[winner.countryCode] = { name: winner.label, code: winner.countryCode, count: 0 };
+        }
+        winStats[winner.countryCode].count++;
+        updateRankingDisplay();
+    }
+
+    function showWinner(b) {
+        isPlaying = false;
+        bgMusic1.pause(); bgMusic2.pause();
+        document.getElementById('cta-text').style.display = 'none';
+        updateLeaderboard(b);
+        document.getElementById('winner-box').style.display = 'block';
+        document.getElementById('winner-name').innerText = b.label;
+        document.getElementById('winner-flag').src = `https://flagcdn.com/w640/${b.countryCode}.png`;
+        speakText(b.label + " Wins!");
+        setTimeout(() => { if (!isMuted) playVictorySound(); startConfetti(); }, 800);
+    }
+
+    const confettiCanvas = document.getElementById('confetti-canvas');
+    const ctx = confettiCanvas.getContext('2d');
+    let particles = [];
+    function resizeConfetti() { confettiCanvas.width = window.innerWidth; confettiCanvas.height = window.innerHeight; }
+    window.addEventListener('resize', resizeConfetti); resizeConfetti();
+    class Particle {
+        constructor() { this.x = Math.random() * confettiCanvas.width; this.y = -20; this.size = Math.random() * 8 + 4; this.speed = Math.random() * 4 + 2; this.angle = Math.random() * 360; this.spin = Math.random() * 8 - 4; this.color = `hsl(${Math.random() * 360}, 80%, 60%)`; }
+        update() { this.y += this.speed; this.angle += this.spin; }
+        draw() { ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle * Math.PI / 180); ctx.fillStyle = this.color; ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size); ctx.restore(); }
+    }
+    function animateConfetti() {
+        if (!isPlaying && document.getElementById('winner-box').style.display === 'block') {
+            ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+            particles.forEach(p => { p.update(); p.draw(); });
+            requestAnimationFrame(animateConfetti);
+        }
+    }
+    function startConfetti() { particles = []; for (let i = 0; i < 180; i++) particles.push(new Particle()); animateConfetti(); }
+    
+    bgMusic1.addEventListener('ended', function() { this.currentTime = 0; this.play(); }, false);
+    bgMusic2.addEventListener('ended', function() { this.currentTime = 0; this.play(); }, false);
+    window.addEventListener('beforeunload', () => { if (audioCtx) audioCtx.suspend(); });
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) { bgMusic1.pause(); bgMusic2.pause(); if (audioCtx) audioCtx.suspend(); }
+        else if (isPlaying && !isMuted) { currentBgMusic.play(); if (audioCtx) audioCtx.resume(); }
+    });
+    window.addEventListener('orientationchange', resizeConfetti);
+</script>
+</body>
+</html>
